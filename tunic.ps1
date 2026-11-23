@@ -158,6 +158,73 @@ function openUrl($url) {
     [System.Diagnostics.Process]::Start($url)
 }
 
+# BitLocker / Device Encryption (ADR 0004).
+# GRUB reads the ISO and preseed from C:. It cannot read an encrypted NTFS volume,
+# even with protection suspended, so anything but fully decrypted is refused.
+# $conversionStatus is Win32_EncryptableVolume.GetConversionStatus():
+#   0 FullyDecrypted, 1 FullyEncrypted, 2 EncryptionInProgress,
+#   3 DecryptionInProgress, 4 EncryptionPaused, 5 DecryptionPaused.
+#   $null = BitLocker not available on this system.
+# Returns an error message, or $null when it is safe to continue.
+function getEncryptionBlocker($conversionStatus, $driveLetter) {
+    if( $null -eq $conversionStatus -or $conversionStatus -eq 0 ) {
+        return $null
+    }
+    $state = switch( $conversionStatus ) {
+        1       { 'encrypted' }
+        2       { 'being encrypted' }
+        3       { 'still being decrypted' }
+        4       { 'partly encrypted (paused)' }
+        5       { 'partly decrypted (paused)' }
+        default { "in an unknown encryption state ($conversionStatus)" }
+    }
+    return "Drive ${driveLetter}: is $state by BitLocker / Device Encryption. " +
+        "Tunic cannot install Linux from an encrypted drive.`n`n" +
+        "1. Save your BitLocker recovery key.`n" +
+        "2. Turn encryption off: Settings > Privacy & security > Device encryption, " +
+        "or as Administrator: manage-bde -off ${driveLetter}:`n" +
+        "3. Wait until it is fully decrypted: manage-bde -status ${driveLetter}:`n" +
+        "4. Run Tunic again."
+}
+
+# Returns the drive's BitLocker conversion status, or $null if BitLocker is not available.
+function getConversionStatus($driveLetter) {
+    try {
+        $vol = Get-CimInstance -Namespace 'root/CIMV2/Security/MicrosoftVolumeEncryption' `
+            -ClassName Win32_EncryptableVolume -Filter "DriveLetter='${driveLetter}:'" -ErrorAction Stop
+    } catch {
+        # Editions without BitLocker have no such namespace.
+        if( "$($_.Exception.NativeErrorCode)" -eq 'InvalidNamespace' ) {
+            return $null
+        }
+        throw
+    }
+    if( ! $vol ) {
+        return $null
+    }
+    return (Invoke-CimMethod -InputObject $vol -MethodName GetConversionStatus -ErrorAction Stop).ConversionStatus
+}
+
+# Returns an error message if the Windows drive is encrypted, else $null.
+# Fails safe: if the state cannot be read, refuse.
+function checkEncryption() {
+    try {
+        $status = getConversionStatus $global:letter
+    } catch {
+        return "Could not check BitLocker / Device Encryption on drive ${global:letter}: ($_). " +
+            "Tunic will not continue without knowing."
+    }
+    return getEncryptionBlocker $status $global:letter
+}
+
+# For command line verbs that write to the disk or boot config.
+function assertNotEncrypted() {
+    $encryptionError = checkEncryption
+    if( $encryptionError ) {
+        throw $encryptionError
+    }
+}
+
 # Returns true if Linux can be installed.
 function checks() {
     if( !(  [Security.Principal.WindowsPrincipal] `
@@ -211,10 +278,10 @@ function checks() {
         say('A Windows Update is in progress.  You should quit and try again later.')
     }
 
-    $blInfo = (Get-BitLockerVolume -MountPoint "${global:letter}" -erroraction silentlyContinue)
-    if( $blInfo -and $blInfo.ProtectionStatus -eq 'On' ) {
-        $recoveryKey = $blInfo.KeyProtector
-        say( "Bitlocker may have issues with dual boot.  Write down your recovery key: $recoveryKey" )
+    $encryptionError = checkEncryption
+    if( $encryptionError ) {
+        die( $encryptionError )
+        return
     }
 
     $partc = ( get-partition -driveLetter $global:letter )
@@ -1177,6 +1244,7 @@ function uninstall() {
 # Mainly for testing purposes.
 # User will have 'tunic' password.
 function fullDisk() {
+    assertNotEncrypted
     initData
     $global:data.installType = $FULLBOOT
     $global:data.password = 'tunic'
@@ -1203,6 +1271,9 @@ function fullDisk() {
     restart-computer -force
 }
 
+# Dot-sourced (e.g. by Pester tests): load functions only, run nothing.
+if( $MyInvocation.InvocationName -eq '.' ) { return }
+
 $op = $args[0]
 
 switch($op) {
@@ -1216,6 +1287,7 @@ switch($op) {
         disableSwap
     }
     {$_ -eq "install-grub" } {
+        assertNotEncrypted
         downloadIso
         installGrub
     }
