@@ -23,7 +23,7 @@ Phase 1 recon of `mikeslattery/tunic` @ `2e6b687` (2023-08-28). Read-only; nothi
 
 ## Install flow (`tunic.ps1`, GUI path)
 
-1. **`checks`** — admin, 64-bit OS + PowerShell, ≥3.5 GB RAM, Windows major ≥10, battery warning, pending-reboot check (installs `Test-PendingReboot` from PSGallery at runtime), Windows Update busy, BitLocker warning (shows recovery key), refuses MBR.
+1. **`checks`** — admin, 64-bit OS + PowerShell, ≥3.5 GB RAM, Windows major ≥10, battery warning, pending-reboot check (installs `Test-PendingReboot` from PSGallery at runtime), Windows Update busy, refuses unless C: is fully decrypted (ADR 0004), refuses MBR.
 2. **`initData`** — loads `distros.ps1`; also mounts any `~\Downloads\*.iso` to offer it by volume label; reads Windows user's full name/username/hostname.
 3. **GUI** — install type (dual boot / erase disk / custom), distro, username/password/fullname/hostname, disclaimer checkbox. Dual boot → second page with sizes + helper buttons (cleanmgr, defrag, diskmgmt, disable swap, WinDirStat).
 4. **`defrag`** (dual boot only) — hibernation + Fast Startup off, `Optimize-Volume -Defrag`.
@@ -54,7 +54,7 @@ CLI verbs (`tunic.ps1 <verb>`): `download-iso`, `enable-swap`, `disable-swap`, `
 | 1 | `repartition` L467 | Typo `$linusSizeNum` vs `$linuxSizeNum` → `$shrinkBy` = −gap, so C: is **never shrunk** | Dual boot relies on pre-existing free space only |
 | 2 | `preseed.cfg` L21 | Target disk = `/dev/sd<a+diskNumber>` | Wrong on NVMe (`/dev/nvme0n1`), i.e. most Win11 machines |
 | 3 | `installGrub` | Pop!_OS shim trusts System76's key; GNU `grubx64.efi` is unsigned → Secure Boot drops to MokManager or fails. Old shim may also be SBAT-revoked by 2024+ Windows updates | Secure Boot path likely broken on Win11 |
-| 4 | `grub.cfg` | GRUB reads the ISO from NTFS C:. With BitLocker/Device Encryption on (default on many Win11 devices) GRUB cannot read C: | Boot fails; `checks` only warns |
+| 4 | `grub.cfg` | GRUB reads the ISO from NTFS C:. With BitLocker/Device Encryption on (default on many Win11 devices) GRUB cannot read C: | Fixed: refuses unless fully decrypted (ADR 0004) |
 | 5 | `preseed.cfg` | Plaintext user password left in `C:\ProgramData\tunic\preseed.cfg` | Security |
 | 6 | `downloadIso` | No checksum/signature verification; HTTP URLs | Integrity |
 | 7 | `installGrub` / `uninstall` | ESP hardcoded to `S:`; dev-only `Z:\Downloads` cache path | Collisions |

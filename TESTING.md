@@ -54,13 +54,17 @@ Expected (from code reading, to confirm):
 - 22.04: GRUB menu appears; Secure Boot may stop at shim/MokManager (architecture.md #3); if it boots, Ubiquity installs unattended.
 - 24.04: GRUB menu appears; installer ignores the preseed → manual installer or live desktop.
 
+## Unit tests
+
+Pester 5, pure logic only (no disk access). Run on Windows: `Invoke-Pester test/unit`. CI (`.github/workflows/ci.yml`) runs them on every push under Windows PowerShell 5.1, plus a parse check of every `.ps1`.
+
 ## Test matrix (definition of done)
 
 | Scenario | Firmware | Expected | Last result |
 | --- | --- | --- | --- |
 | Dual boot, Ubuntu 24.04 | UEFI + SB | Both OSes boot from GRUB; Windows intact | not run |
 | Dual boot, Ubuntu 26.04 | UEFI + SB | Same | not run |
-| BitLocker enabled | UEFI + SB | Detected; clear warning or safe handling, no lockout | not run |
+| BitLocker / Device Encryption on (any state, incl. suspended) | UEFI + SB | Refuses before touching the disk, with decrypt steps (ADR 0004) | not run |
 | Too little free space | UEFI | Refuses before touching disk | not run |
 | Cancel mid-install | UEFI | Windows still boots | not run |
 | Legacy BIOS / MBR | BIOS | Clear "not supported" | not run |

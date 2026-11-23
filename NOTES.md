@@ -3,6 +3,22 @@
 Dated log: what was done, why, result, open questions. Newest first.
 Brief: "Tunic Fork: Coding Agent Handoff" (Claude Docs).
 
+## 2026-11-23 — Dead code removed, BitLocker refusal
+
+**Decisions (Emma):** delete dead code; refuse when C: is encrypted.
+
+**Done**
+- ADR 0003: deleted Go/Python stubs, Makefile, broken CI, old VirtualBox lab. Kept upstream `doc/`.
+- ADR 0004: `tunic.ps1` refuses unless C: is fully decrypted. Checked in `checks` (GUI) and before `install-grub` / `full-disk` verbs. Fails safe if the state can't be read.
+- Why "fully decrypted", not "protection off": suspended BitLocker still leaves data encrypted, so GRUB still can't read the ISO.
+- `tunic.ps1` can be dot-sourced without running (for Pester).
+- `test/unit/encryption.Tests.ps1` + new CI (`ci.yml`, windows-latest, Windows PowerShell 5.1): parse check + Pester.
+- ADR numbers 0001/0002 left for the installer and scope ADRs named in the brief.
+
+**Not verified yet**
+- No PowerShell in this container (downloading it was blocked), so the code only runs in CI and the lab. Check CI result.
+- CIM call and "InvalidNamespace" handling need a real run: lab VM with BitLocker on, then off.
+
 ## 2026-11-23 — Phase 2 prep (lab not yet built)
 
 **Decision:** Hyper-V Gen 2 for the lab (Emma). Why: real Microsoft UEFI CA Secure Boot, so shim results match real PCs; PowerShell scripting. Recorded in TESTING.md.
@@ -51,5 +67,5 @@ Brief: "Tunic Fork: Coding Agent Handoff" (Claude Docs).
 
 **Open questions for Emma**
 - ~~Hypervisor for lab~~ → Hyper-V (answered 2026-11-23).
-- OK to delete dead Go/Python stubs and broken CI in Phase 4 (separate commit + ADR)?
-- BitLocker/Device Encryption: refuse, or guide user to suspend/decrypt? (affects test matrix row 3)
+- ~~Delete dead code?~~ → yes (ADR 0003).
+- ~~BitLocker?~~ → refuse (ADR 0004).
