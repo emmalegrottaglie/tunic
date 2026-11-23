@@ -15,10 +15,10 @@ Phase 1 recon of `mikeslattery/tunic` @ `2e6b687` (2023-08-28). Read-only; nothi
 | `files/tunic-logo.ico` | Icon | Live |
 | `tunic.nsi` | NSIS script: extracts to `%TEMP%\Tunic`, runs `tunic.ps1` hidden via 64-bit PowerShell | Build |
 | `build.ps1` | Installs Chocolatey + NSIS, runs `tunic.ps1 noop` (syntax check), `makensis tunic.nsi` | Build |
-| `main.go`, `Makefile`, `test.mk` | Abandoned Go rewrite stub: downloads upstream 0.2.4 exe and runs it | Dead (logic bug: runs only if download *fails*) |
-| `run.py`, `setup.py` | Abandoned Python/GTK rewrite; `setup.py` is copy-paste from another project ("halo"), won't run | Dead |
-| `.github/workflows/CI.yml` | `make utest` → `go test` on `windows-2019` (no tests exist; runner image retired) | Broken |
-| `test/test-setup.ps1`, `test/test-loop.sh` | VirtualBox lab using MS "MSEdge Win10" VM (download URL dead) | Stale |
+| `main.go`, `Makefile`, `test.mk` | Abandoned Go rewrite stub: downloads upstream 0.2.4 exe and runs it | Deleted (ADR 0003) |
+| `run.py`, `setup.py` | Abandoned Python/GTK rewrite; `setup.py` is copy-paste from another project ("halo"), won't run | Deleted (ADR 0003) |
+| `.github/workflows/CI.yml` | `make utest` → `go test` on `windows-2019` (no tests exist; runner image retired) | Deleted (ADR 0003) |
+| `test/test-setup.ps1`, `test/test-loop.sh` | VirtualBox lab using MS "MSEdge Win10" VM (download URL dead) | Deleted (ADR 0003); replaced by `test/lab/` |
 | `doc/` | Upstream docs (FAQ, TODO, security, references) | Reference only |
 
 ## Install flow (`tunic.ps1`, GUI path)
@@ -60,7 +60,7 @@ CLI verbs (`tunic.ps1 <verb>`): `download-iso`, `enable-swap`, `disable-swap`, `
 | 7 | `installGrub` / `uninstall` | ESP hardcoded to `S:`; dev-only `Z:\Downloads` cache path | Collisions |
 | 8 | `checks` | `die` calls `$form.close()` but execution continues in some paths; no Windows 11 / TPM awareness | Error handling |
 | 9 | `distros.ps1` | All entries EOL; URLs likely dead | Nothing installable |
-| 10 | Build/CI | CI runs Go tests that don't exist on a retired runner; Go/Python stubs confuse the build | No real CI |
+| 10 | Build/CI | CI runs Go tests that don't exist on a retired runner; Go/Python stubs confuse the build | Fixed: deleted (ADR 0003); Pester CI in Phase 4 |
 
 ## Upstream activity
 
