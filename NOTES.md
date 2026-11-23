@@ -16,7 +16,7 @@ Brief: "Tunic Fork: Coding Agent Handoff" (Claude Docs).
 - ADR numbers 0001/0002 left for the installer and scope ADRs named in the brief.
 
 **Not verified yet**
-- No PowerShell in this container (downloading it was blocked), so the code only runs in CI and the lab. Check CI result.
+- No PowerShell in this container (downloading it was blocked). CI run 1 (commit 2df7a09): parse check OK, Pester 13/13 passed on Windows PowerShell 5.1. Bumped checkout to v5 (Node 20 deprecation warning).
 - CIM call and "InvalidNamespace" handling need a real run: lab VM with BitLocker on, then off.
 
 ## 2026-11-23 — Phase 2 prep (lab not yet built)
