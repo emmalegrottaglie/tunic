@@ -53,3 +53,62 @@ Describe 'assertNotEncrypted' {
         { assertNotEncrypted } | Should -Not -Throw
     }
 }
+
+Describe 'getConversionStatus' {
+    BeforeAll {
+        # In-memory CIM object (no WMI call), so Invoke-CimMethod's typed -InputObject binds.
+        $script:vol = New-CimInstance -ClientOnly -Namespace 'root/CIMV2/Security/MicrosoftVolumeEncryption' `
+            -ClassName Win32_EncryptableVolume -Property @{ DriveLetter = 'C:' }
+    }
+
+    BeforeEach {
+        Mock is64BitProcess { $true }
+        Mock Get-CimInstance { $script:vol }
+    }
+
+    It 'returns the status when the call succeeds' {
+        Mock Invoke-CimMethod { [pscustomobject]@{ ReturnValue = 0; ConversionStatus = 1 } }
+        getConversionStatus 'C' | Should -Be 1
+    }
+
+    It 'returns $null when BitLocker is not installed (InvalidNamespace)' {
+        Mock Get-CimInstance {
+            $ex = [System.Exception]::new('Invalid namespace')
+            Add-Member -InputObject $ex -NotePropertyName NativeErrorCode -NotePropertyValue 'InvalidNamespace'
+            throw $ex
+        }
+        getConversionStatus 'C' | Should -BeNullOrEmpty
+    }
+
+    It 'throws on any other CIM error' {
+        Mock Get-CimInstance { throw 'Access denied' }
+        { getConversionStatus 'C' } | Should -Throw
+    }
+
+    It 'throws when the drive has no volume instance' {
+        Mock Get-CimInstance { }
+        { getConversionStatus 'C' } | Should -Throw '*No BitLocker volume information*'
+    }
+
+    It 'throws when GetConversionStatus fails' {
+        Mock Invoke-CimMethod { [pscustomobject]@{ ReturnValue = 2150694912; ConversionStatus = $null } }
+        { getConversionStatus 'C' } | Should -Throw '*0x80310000*'
+    }
+
+    It 'throws when no status comes back' {
+        Mock Invoke-CimMethod { [pscustomobject]@{ ReturnValue = 0; ConversionStatus = $null } }
+        { getConversionStatus 'C' } | Should -Throw
+    }
+
+    It 'refuses in a 32-bit process, before calling CIM' {
+        Mock is64BitProcess { $false }
+        { getConversionStatus 'C' } | Should -Throw '*64-bit*'
+        Should -Invoke Get-CimInstance -Times 0 -Exactly
+    }
+}
+
+Describe 'drive letter' {
+    It 'uses the system drive, not HOMEDRIVE' {
+        $global:letter | Should -Be $env:SystemDrive[0]
+    }
+}

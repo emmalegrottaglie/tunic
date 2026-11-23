@@ -1,2 +1,12 @@
 tunic.exe
 tmp
+
+# Never commit ISOs, VM images or test archives (CLAUDE.md)
+*.iso
+*.ova
+*.vhd
+*.vhdx
+*.avhdx
+*.vmcx
+*.vmrs
+*.zip

@@ -10,7 +10,8 @@ $global:ProgressPreference = 'SilentlyContinue'
 
 $global:shim_url = 'https://github.com/pop-os/iso/blob/master/data/efi/shimx64.efi.signed?raw=true'
 
-$global:letter = $env:HOMEDRIVE[0]
+# The Windows system drive. Not HOMEDRIVE: on domain PCs that can be a mapped drive like H:.
+$global:letter = $env:SystemDrive[0]
 $global:root_dir="${letter}:"
 $global:tunic_dir="${env:ALLUSERSPROFILE}\tunic"
 
@@ -164,7 +165,7 @@ function openUrl($url) {
 # $conversionStatus is Win32_EncryptableVolume.GetConversionStatus():
 #   0 FullyDecrypted, 1 FullyEncrypted, 2 EncryptionInProgress,
 #   3 DecryptionInProgress, 4 EncryptionPaused, 5 DecryptionPaused.
-#   $null = BitLocker not available on this system.
+#   $null = BitLocker is not installed on this system (see getConversionStatus).
 # Returns an error message, or $null when it is safe to continue.
 function getEncryptionBlocker($conversionStatus, $driveLetter) {
     if( $null -eq $conversionStatus -or $conversionStatus -eq 0 ) {
@@ -181,14 +182,25 @@ function getEncryptionBlocker($conversionStatus, $driveLetter) {
     return "Drive ${driveLetter}: is $state by BitLocker / Device Encryption. " +
         "Tunic cannot install Linux from an encrypted drive.`n`n" +
         "1. Save your BitLocker recovery key.`n" +
-        "2. Turn encryption off: Settings > Privacy & security > Device encryption, " +
-        "or as Administrator: manage-bde -off ${driveLetter}:`n" +
+        "2. Turn encryption off as Administrator: manage-bde -off ${driveLetter}: " +
+        "(or Settings > Privacy & security > Device encryption, if your PC has it).`n" +
         "3. Wait until it is fully decrypted: manage-bde -status ${driveLetter}:`n" +
         "4. Run Tunic again."
 }
 
-# Returns the drive's BitLocker conversion status, or $null if BitLocker is not available.
+# Wrapped so tests can mock it.
+function is64BitProcess() {
+    return [Environment]::Is64BitProcess
+}
+
+# Returns the drive's BitLocker conversion status, or $null only when BitLocker is
+# not installed. Throws whenever the state is unknown, so callers refuse (fail safe).
 function getConversionStatus($driveLetter) {
+    # A 32-bit process can't see the BitLocker WMI namespace and would look like
+    # "BitLocker not installed". Refuse rather than guess.
+    if( -not (is64BitProcess) ) {
+        throw 'Encryption check needs 64-bit PowerShell.'
+    }
     try {
         $vol = Get-CimInstance -Namespace 'root/CIMV2/Security/MicrosoftVolumeEncryption' `
             -ClassName Win32_EncryptableVolume -Filter "DriveLetter='${driveLetter}:'" -ErrorAction Stop
@@ -199,10 +211,19 @@ function getConversionStatus($driveLetter) {
         }
         throw
     }
+    # With BitLocker installed, every fixed volume has an instance. None means we asked
+    # about the wrong drive: unknown, not "unencrypted".
     if( ! $vol ) {
-        return $null
+        throw "No BitLocker volume information for drive ${driveLetter}:"
     }
-    return (Invoke-CimMethod -InputObject $vol -MethodName GetConversionStatus -ErrorAction Stop).ConversionStatus
+    $result = Invoke-CimMethod -InputObject $vol -MethodName GetConversionStatus -ErrorAction Stop
+    if( $result.ReturnValue -ne 0 ) {
+        throw ('GetConversionStatus failed with 0x{0:X8}' -f [uint32]$result.ReturnValue)
+    }
+    if( $null -eq $result.ConversionStatus ) {
+        throw 'GetConversionStatus returned no status'
+    }
+    return $result.ConversionStatus
 }
 
 # Returns an error message if the Windows drive is encrypted, else $null.
@@ -249,6 +270,13 @@ function checks() {
         return
     }
 
+    # Before anything is downloaded or changed (ADR 0004).
+    $encryptionError = checkEncryption
+    if( $encryptionError ) {
+        die( $encryptionError )
+        return
+    }
+
     $osversion = [System.Environment]::OSVersion.version
     if( $osversion.major -lt 10 ) {
         # Windows 7=6.1, 8=6.2, 8.1=6.3  Windows 10=10
@@ -276,12 +304,6 @@ function checks() {
 
     if( (New-Object -ComObject 'Microsoft.Update.Installer').isBusy ) {
         say('A Windows Update is in progress.  You should quit and try again later.')
-    }
-
-    $encryptionError = checkEncryption
-    if( $encryptionError ) {
-        die( $encryptionError )
-        return
     }
 
     $partc = ( get-partition -driveLetter $global:letter )
@@ -1160,6 +1182,14 @@ function gui() {
             $linuxsize.focus()
         }
         else {
+            # Re-check right before the first disk change: the startup check may be
+            # stale, and die() at startup does not guarantee the form closed (ADR 0004).
+            $encryptionError = checkEncryption
+            if( $encryptionError ) {
+                die( $encryptionError )
+                return
+            }
+
             $global:main.visible = $false
             $global:dual.visible = $false
             $installButton.visible = $false
@@ -1287,9 +1317,10 @@ switch($op) {
         disableSwap
     }
     {$_ -eq "install-grub" } {
-        assertNotEncrypted
-        downloadIso
-        installGrub
+        # Disabled: this verb never ran initData, so it wrote a boot entry first in
+        # firmware boot order with no ISO path and an empty user/password.
+        # Use the GUI until the command line path is reworked (Phase 4).
+        throw 'install-grub is disabled: it is unsafe without user data. Use the GUI.'
     }
     {$_ -eq "tz" } {
         getLinuxTimezone

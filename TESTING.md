@@ -12,6 +12,8 @@ Host needs: Windows 10/11 Pro, Enterprise or Education; virtualization on in fir
    `Enable-WindowsOptionalFeature -Online -FeatureName Microsoft-Hyper-V -All`
 2. Download a Windows 11 ISO (Enterprise 90-day evaluation from the Microsoft Evaluation Center is fine). Create the VM:
    `.\test\lab\new-lab-vm.ps1 -WindowsIso C:\path\to\Win11.iso`
+   On a Windows Server host there is no 'Default Switch': create one and pass `-Switch <name>`.
+   Check the Secure Boot template took: `(Get-VMFirmware tunic-lab).SecureBootTemplate` → `MicrosoftUEFICertificateAuthority`. If not, stop: Linux will not boot and results are meaningless.
    This sets: Gen 2/UEFI, Secure Boot with "Microsoft UEFI Certificate Authority" template, vTPM, 4 CPU, 12 GB static RAM, 128 GB disk, Guest Service Interface.
 3. Start the VM (`Start-VM tunic-lab; vmconnect localhost tunic-lab`), press a key to boot the DVD, install Windows to the whole disk with a local account. Default layout (EFI, MSR, C:, Recovery) is expected.
 4. Inside the VM, admin PowerShell:
@@ -36,8 +38,9 @@ Per run (22.04 first, then 24.04):
 
 1. Restore `clean-win11`, start the VM.
 2. Copy upstream source into the VM. On the host, from the repo root:
-   `git archive --format=zip -o tunic-upstream.zip 2e6b687`
-   `Copy-VMFile tunic-lab -SourcePath .\tunic-upstream.zip -DestinationPath C:\tunic\tunic-upstream.zip -CreateFullPath -FileSource Host`
+   `git archive --format=zip -o $env:TEMP\tunic-upstream.zip 2e6b687`
+   `Copy-VMFile tunic-lab -SourcePath $env:TEMP\tunic-upstream.zip -DestinationPath C:\tunic\tunic-upstream.zip -CreateFullPath -FileSource Host`
+   (Archive goes to TEMP, not the repo, so it can't be committed.)
    In the VM: `Expand-Archive C:\tunic\tunic-upstream.zip C:\tunic\src`
 3. In the VM, download the ISO into `~\Downloads` (Tunic auto-lists any ISO there; upstream's built-in list is all EOL):
    - 22.04: latest `ubuntu-22.04.*-desktop-amd64.iso` from https://releases.ubuntu.com/22.04/

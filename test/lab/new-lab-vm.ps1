@@ -19,32 +19,41 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-if (-not (Test-Path $WindowsIso)) { throw "ISO not found: $WindowsIso" }
+if (-not (Test-Path -LiteralPath $WindowsIso -PathType Leaf)) { throw "ISO not found: $WindowsIso" }
 if (Get-VM -Name $Name -ErrorAction SilentlyContinue) { throw "VM '$Name' already exists. Remove it first or pass -Name." }
 
 New-Item -ItemType Directory -Force -Path $VmRoot | Out-Null
 $vhd = Join-Path $VmRoot "$Name.vhdx"
-if (Test-Path $vhd) { throw "Disk already exists: $vhd" }
+if (Test-Path -LiteralPath $vhd) { throw "Disk already exists: $vhd" }
 
-# Gen 2 = UEFI. SCSI disk (shows as /dev/sda in Linux - see TESTING.md coverage gaps).
-New-VM -Name $Name -Generation 2 -MemoryStartupBytes $MemoryBytes `
-    -NewVHDPath $vhd -NewVHDSizeBytes $DiskBytes -SwitchName $Switch -Path $VmRoot | Out-Null
+# Everything below creates resources that did not exist before (checked above).
+# On failure, remove only those, so a rerun starts clean.
+try {
+    # Gen 2 = UEFI. SCSI disk (shows as /dev/sda in Linux - see TESTING.md coverage gaps).
+    New-VM -Name $Name -Generation 2 -MemoryStartupBytes $MemoryBytes `
+        -NewVHDPath $vhd -NewVHDSizeBytes $DiskBytes -SwitchName $Switch -Path $VmRoot | Out-Null
 
-# Static memory: Tunic checks total RAM, and dynamic memory can under-report it.
-Set-VM -Name $Name -ProcessorCount $Cpus -StaticMemory -AutomaticCheckpointsEnabled $false
+    # Static memory: Tunic checks total RAM, and dynamic memory can under-report it.
+    Set-VM -Name $Name -ProcessorCount $Cpus -StaticMemory -AutomaticCheckpointsEnabled $false
 
-# Secure Boot with the third-party CA, like a real OEM PC. The default 'MicrosoftWindows'
-# template only trusts Windows and would block any Linux shim, giving a false failure.
-Set-VMFirmware -VMName $Name -EnableSecureBoot On -SecureBootTemplate 'MicrosoftUEFICertificateAuthority'
+    # Secure Boot with the third-party CA, like a real OEM PC. The default 'MicrosoftWindows'
+    # template only trusts Windows and would block any Linux shim, giving a false failure.
+    Set-VMFirmware -VMName $Name -EnableSecureBoot On -SecureBootTemplate 'MicrosoftUEFICertificateAuthority'
 
-# TPM 2.0 (Windows 11 requirement; also enables BitLocker test scenarios).
-Set-VMKeyProtector -VMName $Name -NewLocalKeyProtector
-Enable-VMTPM -VMName $Name
+    # TPM 2.0 (Windows 11 requirement; also enables BitLocker test scenarios).
+    Set-VMKeyProtector -VMName $Name -NewLocalKeyProtector
+    Enable-VMTPM -VMName $Name
 
-# Lets the host push files into the guest with Copy-VMFile.
-Enable-VMIntegrationService -VMName $Name -Name 'Guest Service Interface'
+    # Lets the host push files into the guest with Copy-VMFile.
+    Enable-VMIntegrationService -VMName $Name -Name 'Guest Service Interface'
 
-$dvd = Add-VMDvdDrive -VMName $Name -Path $WindowsIso -Passthru
-Set-VMFirmware -VMName $Name -FirstBootDevice $dvd
+    $dvd = Add-VMDvdDrive -VMName $Name -Path $WindowsIso -Passthru
+    Set-VMFirmware -VMName $Name -FirstBootDevice $dvd
+} catch {
+    Write-Warning "VM creation failed: $_  Removing the partly created VM '$Name' and its disk."
+    if (Get-VM -Name $Name -ErrorAction SilentlyContinue) { Remove-VM -Name $Name -Force }
+    if (Test-Path -LiteralPath $vhd) { Remove-Item -LiteralPath $vhd -Force }
+    throw
+}
 
 Write-Host "Created VM '$Name'. Next: TESTING.md, 'Lab VM' step 3 (install Windows)."
