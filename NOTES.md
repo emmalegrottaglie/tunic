@@ -3,6 +3,26 @@
 Dated log: what was done, why, result, open questions. Newest first.
 Brief: "Tunic Fork: Coding Agent Handoff" (Claude Docs).
 
+## 2026-11-23 — Phase 2 prep (lab not yet built)
+
+**Decision:** Hyper-V Gen 2 for the lab (Emma). Why: real Microsoft UEFI CA Secure Boot, so shim results match real PCs; PowerShell scripting. Recorded in TESTING.md.
+
+**Done**
+- `test/lab/new-lab-vm.ps1`: creates the VM (Gen 2, Secure Boot with third-party CA template, vTPM, 12 GB static RAM, 128 GB disk). Not executed; no PowerShell in this container, so not even syntax-checked.
+- TESTING.md: host setup, VM build, clean checkpoint, exact Phase 2 baseline procedure, run-log template.
+
+**Why these choices**
+- Secure Boot template "Microsoft UEFI Certificate Authority": the default template trusts only Windows and would fail every Linux boot, a false result.
+- 12 GB RAM, static: GRUB boots casper with `toram`, which copies the ISO into RAM. 24.04 desktop ISO is ~6 GB, so upstream's "4 GB RAM" claim likely fails. Static so Tunic's RAM check sees the real figure. To verify in the baseline.
+- Baseline pre-shrinks C: by 40 GB by hand, because upstream's shrink never runs (architecture.md #1). Otherwise every run fails for a known reason and hides the 24.04 behaviour.
+- Baseline uses upstream source at `2e6b687` via `git archive`, not the 0.2.4 release exe, because the fork builds on the source.
+
+**Coverage gaps (lab can't test)**
+- NVMe disk naming bug: Hyper-V disks are SCSI. Needs real hardware or QEMU with NVMe.
+- Legacy BIOS: Gen 1 VMs can't run Windows 11.
+
+**Next (Emma, on a Windows host)**: build the lab, run both baselines, fill TESTING.md run log. Then Phase 2 checkpoint review.
+
 ## 2026-11-23 — Phase 0 + Phase 1
 
 **Done**
@@ -30,6 +50,6 @@ Brief: "Tunic Fork: Coding Agent Handoff" (Claude Docs).
 - Phase 2 needs a Windows 11 VM with UEFI/Secure Boot/TPM. Not possible in this cloud container (no hypervisor, no Windows). Must run on Emma's machine or a nested-virt host.
 
 **Open questions for Emma**
-- Hypervisor for lab (Hyper-V vs VirtualBox)? Determines TESTING.md steps.
+- ~~Hypervisor for lab~~ → Hyper-V (answered 2026-11-23).
 - OK to delete dead Go/Python stubs and broken CI in Phase 4 (separate commit + ADR)?
 - BitLocker/Device Encryption: refuse, or guide user to suspend/decrypt? (affects test matrix row 3)
