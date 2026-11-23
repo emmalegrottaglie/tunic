@@ -11,7 +11,7 @@
 Phase 1 recon (`docs/architecture.md`) found that only `tunic.ps1` + `files/` ship, wrapped by NSIS. Everything else that looks like code is unused:
 
 - `main.go`, `Makefile`, `test.mk`: Go rewrite stub. It downloads upstream's 0.2.4 exe and has an inverted error check (runs it only if the download fails).
-- `run.py`, `setup.py`: Python/GTK rewrite stub. `setup.py` was copied from another project ("halo") and fails on import.
+- `run.py`, `setup.py`: Python/GTK rewrite stub. `setup.py` was copied from another project ("halo") and fails with a NameError (`DEBUG` undefined) when run.
 - `.github/workflows/CI.yml`: runs `go test` (no tests exist) on the retired `windows-2019` image.
 - `test/test-loop.sh`, `test/test-setup.ps1`, `test/test-setup.bat`: VirtualBox lab built on Microsoft's "MSEdge Win10" image, whose download URL is dead. Replaced by the Hyper-V lab (`test/lab/`, TESTING.md).
 

@@ -3,6 +3,28 @@
 Dated log: what was done, why, result, open questions. Newest first.
 Brief: "Tunic Fork: Coding Agent Handoff" (Claude Docs).
 
+## 2026-11-23 — Triple-check rule, CI hardening, independent review fixes
+
+**Rule (Emma):** triple-check every coding claim and change: correct, good practice, secure. Saved in `CLAUDE.md`.
+
+**CI hardening** (commit 92b8c66, CI passed 13/13 with Pester 5.9.1)
+- `actions/checkout` pinned to v6.1.0 commit SHA `d23441a…` (checked with `git ls-remote`; v6 README: no workflow changes needed).
+- Pester pinned to 5.9.1. `-SkipPublisherCheck` removed: Pester's README says it is signed and the flag should no longer be used. (pester.dev's v5 docs still show it; the install worked without it in CI.)
+- `permissions: contents: read`, `persist-credentials: false`.
+- Earlier note "Bumped checkout to v5" is superseded. CI run 1 used `-MinimumVersion 5.5.0`, so which Pester major it ran is unknown.
+
+**Independent review** (fresh subagent, given the code only). Fixed:
+- Encryption check passed instead of refusing when: no volume instance, `GetConversionStatus` error, or `HOMEDRIVE` ≠ system drive. Now all refuse; 32-bit PowerShell refused; drive = `$env:SystemDrive`.
+- Encryption check moved before the PSGallery download in `checks`, and repeated in the GUI before the first disk change.
+- `install-grub` verb disabled (never loaded user data; wrote a first-in-boot-order entry with empty ISO path/password).
+- architecture.md: shim is Canonical's 15.7, not System76's (verified from the file); added unverified downloads (GRUB zip, shim, Test-PendingReboot, windowsZones.xml) as defects 11–14; line numbers replaced by function names.
+- `.gitignore` blocks ISOs, VM images, zips; TESTING writes the archive to TEMP.
+- CI pinned to `windows-2025` (label verified in actions/runner-images README) + 15 min timeout.
+- Lab script: `-LiteralPath`; removes a half-built VM on failure; TESTING adds Secure Boot template check and the Windows Server "Default Switch" caveat.
+- New tests mock `Get-CimInstance`/`Invoke-CimMethod` for every fail-safe path.
+
+**Still unverified** (need the lab): real CIM behaviour incl. the "InvalidNamespace" value; whether `die()` in the Shown handler closes the form; Secure Boot template name; casper `toram`/`iso-scan` on 24.04; ISO size/RAM; SBAT status of shim 15.7.
+
 ## 2026-11-23 — Dead code removed, BitLocker refusal
 
 **Decisions (Emma):** delete dead code; refuse when C: is encrypted.
